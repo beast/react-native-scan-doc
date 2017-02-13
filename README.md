@@ -1,5 +1,5 @@
 
-# react-native-scan-doc
+# react-native-scan-doc (WIP)
 
 ## Getting started
 
@@ -9,8 +9,24 @@
 
 `$ react-native link react-native-scan-doc`
 
-### Manual installation
+##Features
+### Android
+- [x] Scan document.
+- [x] Perspective Transform.
+  
+### iOS
+- [x] Scan document.
+- [x] Perspective Transform.
 
+##Requirements
+### Android
+API 16+
+### iOS
+iOS 8+
+### React Native
+RN 0.38+
+
+### Manual installation
 
 #### iOS
 
