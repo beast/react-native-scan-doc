@@ -1,3 +1,11 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.2.2'
+    }
+}
 
 apply plugin: 'com.android.library'
 
@@ -19,7 +27,12 @@ android {
     }
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
     compile 'com.facebook.react:react-native:+'
+    compile project(path: ':openCVLibrary320')
 }
   
