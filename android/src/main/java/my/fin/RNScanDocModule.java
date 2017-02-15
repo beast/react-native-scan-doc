@@ -2,6 +2,7 @@
 package my.fin;
 
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 
@@ -11,8 +12,12 @@ import com.facebook.react.bridge.ReactMethod;
 //import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableNativeMap;
+
 import android.graphics.Bitmap;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.widget.ImageView;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -35,10 +40,14 @@ import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.utils.Converters;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 import java.io.IOException;
@@ -62,6 +71,11 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
   Bitmap linesBitmap;
   Bitmap origBitmap;
   Bitmap dstBitmap;
+  Bitmap outputBitmap;
+
+  public final static String BASE64_PREFIX = "data:image/";
+  public final static String CONTENT_PREFIX = "content://";
+  public final static String FILE_PREFIX = "file:";
 
   private final ReactApplicationContext mReactContext;
 
@@ -77,23 +91,172 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void scan(String imagePath, String outputPath, Promise promise) {
+  public void scan(String imagePath, int newWidth, int newHeight, int quality, String compressFormatString, String outputPath, Promise promise) {
     try {
-      Activity currentActivity = getCurrentActivity();
+      Bitmap sourceImage = null;
 
-      if (currentActivity == null) {
-        promise.reject("no activity found.");
-        return;
+      // If the BASE64_PREFIX is absent, load bitmap from a file. Otherwise, load from base64.
+      if (!imagePath.startsWith(BASE64_PREFIX)) {
+        sourceImage = loadBitmapFromFile(mReactContext, imagePath, newWidth, newHeight);
+      }
+      else {
+        sourceImage = loadBitmapFromBase64(imagePath);
       }
 
+      if (sourceImage == null) {
+        promise.reject("1","Unable to load source image from path");
+      }
+      //find edges
+      outputBitmap = findEdges(sourceImage);
+
+      // Save the resulting image
+      File path = mReactContext.getCacheDir();
+      if (outputPath != null) {
+        path = new File(outputPath);
+      }
+
+      Bitmap.CompressFormat compressFormat = Bitmap.CompressFormat.valueOf(compressFormatString);
+
+      File file = saveImage(outputBitmap, path,
+              Long.toString(new Date().getTime()), compressFormat, quality);
+
+      WritableMap response = new WritableNativeMap();
+      response.putString("path", Uri.fromFile(file).toString());
+      promise.resolve(response);
 
     } catch (Exception e) {
-
+      promise.reject("2",e.getMessage());
     }
 
   }
+  /**
+   * Save the given bitmap in a directory. Extension is automatically generated using the bitmap format.
+   */
+  private static File saveImage(Bitmap bitmap, File saveDirectory, String fileName,
+                                  Bitmap.CompressFormat compressFormat, int quality)
+          throws IOException {
+    if (bitmap == null) {
+      throw new IOException("The bitmap couldn't be resized");
+    }
 
-  protected Bitmap findEdges(ImageView img) {
+    File newFile = new File(saveDirectory, fileName + "." + compressFormat.name());
+    if(!newFile.createNewFile()) {
+      throw new IOException("The file already exists");
+    }
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    bitmap.compress(compressFormat, quality, outputStream);
+    byte[] bitmapData = outputStream.toByteArray();
+
+    outputStream.flush();
+    outputStream.close();
+
+    FileOutputStream fos = new FileOutputStream(newFile);
+    fos.write(bitmapData);
+    fos.flush();
+    fos.close();
+
+    return newFile;
+  }
+
+
+  /**
+   * Loads the bitmap resource from the file specified in imagePath.
+   */
+  private static Bitmap loadBitmapFromFile(Context context, String imagePath, int newWidth,
+                                           int newHeight) throws IOException  {
+    // Decode the image bounds to find the size of the source image.
+    BitmapFactory.Options options = new BitmapFactory.Options();
+    options.inJustDecodeBounds = true;
+    loadBitmap(context, imagePath, options);
+
+    // Set a sample size according to the image size to lower memory usage.
+    options.inSampleSize = calculateInSampleSize(options, newWidth, newHeight);
+    options.inJustDecodeBounds = false;
+    System.out.println(options.inSampleSize);
+    return loadBitmap(context, imagePath, options);
+
+  }
+
+  /**
+   * Compute the inSampleSize value to use to load a bitmap.
+   * Adapted from https://developer.android.com/training/displaying-bitmaps/load-bitmap.html
+   */
+  private static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+    final int height = options.outHeight;
+    final int width = options.outWidth;
+
+    int inSampleSize = 1;
+
+    if (height > reqHeight || width > reqWidth) {
+      final int halfHeight = height / 2;
+      final int halfWidth = width / 2;
+
+      // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+      // height and width larger than the requested height and width.
+      while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+        inSampleSize *= 2;
+      }
+    }
+
+    return inSampleSize;
+  }
+
+  /**
+   * Loads the bitmap resource from a base64 encoded jpg or png.
+   * Format is as such:
+   * png: 'data:image/png;base64,iVBORw0KGgoAA...'
+   * jpg: 'data:image/jpeg;base64,/9j/4AAQSkZJ...'
+   */
+  private static Bitmap loadBitmapFromBase64(String imagePath) {
+    Bitmap sourceImage = null;
+
+    // base64 image.  Convert to a bitmap.
+    final int prefixLen = BASE64_PREFIX.length();
+    final boolean isJpeg = (imagePath.indexOf("jpeg") == prefixLen);
+    final boolean isPng = (!isJpeg) && (imagePath.indexOf("png") == prefixLen);
+    int commaLocation = -1;
+    if (isJpeg || isPng){
+      commaLocation = imagePath.indexOf(',');
+    }
+    if (commaLocation > 0) {
+      final String encodedImage = imagePath.substring(commaLocation+1);
+      final byte[] decodedString = Base64.decode(encodedImage, Base64.DEFAULT);
+      sourceImage = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+    }
+
+    return sourceImage;
+  }
+
+  /**
+   * Load a bitmap either from a real file or using the {@link ContentResolver} of the current
+   * {@link Context} (to read gallery images for example).
+   *
+   * Note that, when options.inJustDecodeBounds = true, we actually expect sourceImage to remain
+   * as null (see https://developer.android.com/training/displaying-bitmaps/load-bitmap.html), so
+   * getting null sourceImage at the completion of this method is not always worthy of an error.
+   */
+  private static Bitmap loadBitmap(Context context, String imagePath, BitmapFactory.Options options) throws IOException {
+    Bitmap sourceImage = null;
+    if (!imagePath.startsWith(CONTENT_PREFIX)) {
+      try {
+        sourceImage = BitmapFactory.decodeFile(imagePath, options);
+      } catch (Exception e) {
+        e.printStackTrace();
+        throw new IOException("Error decoding image file");
+      }
+    } else {
+      ContentResolver cr = context.getContentResolver();
+      InputStream input = cr.openInputStream(Uri.parse(imagePath));
+      if (input != null) {
+        sourceImage = BitmapFactory.decodeStream(input, null, options);
+        input.close();
+      }
+    }
+    return sourceImage;
+  }
+
+  protected Bitmap findEdges(Bitmap bitmap) {
 
     // https://github.com/daisygao/ScannerLites
     Mat rgbMat = new Mat();
@@ -112,6 +275,7 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
 
     // get bitmap
 //    origBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.card4, o);
+    origBitmap = bitmap;
 
     int w = origBitmap.getWidth();
     int h = origBitmap.getHeight();
