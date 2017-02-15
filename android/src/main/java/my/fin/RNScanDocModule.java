@@ -93,7 +93,7 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void scan(String imagePath, int newWidth, int newHeight, int quality, String compressFormatString, String outputPath, Promise promise) {
     try {
-      Bitmap sourceImage = null;
+      Bitmap sourceImage;
 
       // If the BASE64_PREFIX is absent, load bitmap from a file. Otherwise, load from base64.
       if (!imagePath.startsWith(BASE64_PREFIX)) {
