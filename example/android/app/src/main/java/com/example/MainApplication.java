@@ -2,6 +2,7 @@ package com.example;
 
 import android.app.Activity;
 import android.app.Application;
+import android.os.Bundle;
 import android.util.Log;
 
 import com.facebook.react.ReactApplication;
@@ -23,6 +24,7 @@ import java.util.List;
 
 
 public class MainApplication extends Application implements ReactApplication {
+  private final RNScanDocPackage scanDocPackage = new RNScanDocPackage();
 
   private final ReactNativeHost mReactNativeHost = new ReactNativeHost(this) {
     @Override
@@ -34,7 +36,7 @@ public class MainApplication extends Application implements ReactApplication {
     protected List<ReactPackage> getPackages() {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
-            new RNScanDocPackage(),
+              scanDocPackage,
             new RCTCameraPackage()
       );
     }
@@ -49,6 +51,13 @@ public class MainApplication extends Application implements ReactApplication {
   public void onCreate() {
     super.onCreate();
     SoLoader.init(this, /* native exopackage */ false);
+    registerActivityLifecycleCallbacks(new LifecycleCallbacks(){
+      @Override
+      public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+        scanDocPackage.onActivityCreated(activity);
+      }
+    });
   }
+
 
 }
