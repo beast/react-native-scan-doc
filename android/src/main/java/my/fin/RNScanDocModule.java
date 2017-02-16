@@ -6,6 +6,7 @@ import android.content.ContentResolver;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 
+import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -17,6 +18,7 @@ import com.facebook.react.bridge.WritableNativeMap;
 
 import android.graphics.Bitmap;
 import android.provider.MediaStore;
+import android.support.v7.appcompat.BuildConfig;
 import android.util.Base64;
 import android.widget.ImageView;
 import android.content.Context;
@@ -30,6 +32,8 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.CvType;
@@ -52,6 +56,8 @@ import java.util.List;
 
 import java.io.IOException;
 
+import static android.content.ContentValues.TAG;
+
 class Line{
   Point _p1;
   Point _p2;
@@ -73,16 +79,40 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
   Bitmap dstBitmap;
   Bitmap outputBitmap;
 
+  Mat rgbMat;
+  Mat grayMat;
+  Mat cannyMat;
+  Mat linesMat;
+
   public final static String BASE64_PREFIX = "data:image/";
   public final static String CONTENT_PREFIX = "content://";
   public final static String FILE_PREFIX = "file:";
 
   private final ReactApplicationContext mReactContext;
+  private final BaseLoaderCallback mOpenCVCallBack;
 
   public RNScanDocModule(ReactApplicationContext reactContext) {
     super(reactContext);
-    mReactContext = reactContext;
-    OpenCVLoader.initDebug();
+    this.mReactContext = reactContext;
+    mOpenCVCallBack = new BaseLoaderCallback(getCurrentActivity()) {
+      @Override
+      public void onManagerConnected(int status) {
+        switch (status) {
+          case LoaderCallbackInterface.SUCCESS:
+          {
+            rgbMat = new Mat();
+            grayMat = new Mat();
+            cannyMat = new Mat();
+            linesMat = new Mat();
+            Log.d(TAG, "OpenCV loaded success");
+          } break;
+          default:
+          {
+            super.onManagerConnected(status);
+          } break;
+        }
+      }
+    };
   }
 
   @Override
@@ -90,18 +120,29 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
     return "RNScanDoc";
   }
 
+
+
+
   @ReactMethod
   public void scan(String imagePath, int newWidth, int newHeight, int quality, String compressFormatString, String outputPath, Promise promise) {
     try {
+      Log.d(TAG, "filepath: "+ imagePath);
+      OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_2_0,getCurrentActivity(),mOpenCVCallBack);
+//      OpenCVLoader.initDebug();
       Bitmap sourceImage;
+      imagePath = imagePath.substring(6);
 
       // If the BASE64_PREFIX is absent, load bitmap from a file. Otherwise, load from base64.
       if (!imagePath.startsWith(BASE64_PREFIX)) {
+        Log.d(TAG, "not base64");
         sourceImage = loadBitmapFromFile(mReactContext, imagePath, newWidth, newHeight);
       }
       else {
+        Log.d(TAG, "base64");
         sourceImage = loadBitmapFromBase64(imagePath);
       }
+
+      Log.d(TAG, "finish load file");
 
       if (sourceImage == null) {
         promise.reject("1","Unable to load source image from path");
@@ -169,11 +210,12 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
     BitmapFactory.Options options = new BitmapFactory.Options();
     options.inJustDecodeBounds = true;
     loadBitmap(context, imagePath, options);
+    Log.d(TAG, "loadBitmapFromFile: finish first load");
 
     // Set a sample size according to the image size to lower memory usage.
     options.inSampleSize = calculateInSampleSize(options, newWidth, newHeight);
     options.inJustDecodeBounds = false;
-    System.out.println(options.inSampleSize);
+//    System.out.println(options.inSampleSize);
     return loadBitmap(context, imagePath, options);
 
   }
@@ -240,6 +282,7 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
     Bitmap sourceImage = null;
     if (!imagePath.startsWith(CONTENT_PREFIX)) {
       try {
+        Log.d(TAG, "loadBitmap: " + imagePath);
         sourceImage = BitmapFactory.decodeFile(imagePath, options);
       } catch (Exception e) {
         e.printStackTrace();
@@ -259,14 +302,11 @@ public class RNScanDocModule extends ReactContextBaseJavaModule {
   protected Bitmap findEdges(Bitmap bitmap) {
 
     // https://github.com/daisygao/ScannerLites
-    Mat rgbMat = new Mat();
-    Mat grayMat = new Mat();
-    Mat cannyMat;
-    Mat linesMat = new Mat();
+
     BitmapFactory.Options o=new BitmapFactory.Options();
 
     // define the destination image size: A4 - 200 PPI
-    int w_a4 = 1654, h_a4 = 2339;
+//    int w_a4 = 1654, h_a4 = 2339;
 
     // TODO: 29/08/2016  May need to check sample size https://developer.android.com/training/displaying-bitmaps/load-bitmap.html
     o.inSampleSize = 4;
