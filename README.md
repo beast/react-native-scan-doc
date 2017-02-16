@@ -15,8 +15,8 @@
 - [x] Perspective Transform.
   
 ### iOS
-- [] Scan document.
-- [] Perspective Transform.
+- [-] Scan document.
+- [-] Perspective Transform.
 
 ##Requirements
 ### Android
