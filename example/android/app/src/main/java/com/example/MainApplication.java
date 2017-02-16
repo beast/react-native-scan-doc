@@ -1,5 +1,6 @@
 package com.example;
 
+import android.app.Activity;
 import android.app.Application;
 import android.util.Log;
 
@@ -12,8 +13,14 @@ import com.facebook.react.ReactPackage;
 import com.facebook.react.shell.MainReactPackage;
 import com.facebook.soloader.SoLoader;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+
 import java.util.Arrays;
 import java.util.List;
+
+
 
 public class MainApplication extends Application implements ReactApplication {
 
@@ -43,4 +50,5 @@ public class MainApplication extends Application implements ReactApplication {
     super.onCreate();
     SoLoader.init(this, /* native exopackage */ false);
   }
+
 }
