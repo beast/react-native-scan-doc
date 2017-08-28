@@ -1,6 +1,18 @@
 
 # react-native-scan-doc (WIP)
 
+## Read before you proceed:
+Most of the scan doc package out there cost a fortune. Last time I looked into one it cost tens of thousands euros a year.
+
+Getting Opencv package to play nicely with RN out-of-box is almost impossible. Part of the reason is also that I try to avoid using install OpenCV manager for Android. Believe me I had tried make it as dummy as possible to the best of my knowledge. But the reality is setting up opencv to work nicely with Android itself is a challenging enough task. I suggest you look at a few examples to understand how OpenCV works with Android first then proceed to manual installation.
+https://blog.nishtahir.com/2015/11/11/setting-up-for-android-ndk-development/
+
+Try out my [Android Native Scan Doc](https://github.com/beast/android-opencv-scan-doc) sample if you want to first check out how the scan doc helps you to crop a doc in image.
+
+Again, I am open to have some help from the community to improve the package documentation.
+
+I myself unfortunately is tied up with other work of my own. Will look into this seriously once I got time and resource. Thanks.
+
 ## Getting started
 
 `$ npm install react-native-scan-doc --save`
