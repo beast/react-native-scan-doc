@@ -1,5 +1,5 @@
 
-# react-native-scan-doc (WIP)
+# react-native-scan-doc (WIP, Looking for Contributors)
 
 ## Read before you proceed:
 Most of the scan doc package out there cost a fortune. Last time I looked into one it cost tens of thousands euros a year.
